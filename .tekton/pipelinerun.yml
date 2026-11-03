@@ -1,0 +1,30 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: oc-pipelines-oc-green
+spec:
+  serviceAccountName: tekton-pipeline
+  pipelineRef:
+    name: oc-pipelines-oc-final
+  params:
+    - name: repo-url
+      value: https://github.com/JanakanXDev/coursera-assignment.git
+    - name: revision
+      value: main
+    - name: image
+      value: image-registry.openshift-image-registry.svc:5000/your-namespace/product-catalogue:latest
+    - name: namespace
+      value: your-namespace
+    - name: deployment-name
+      value: product-catalogue
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: oc-pipelines-pvc
+---
+# Before creating this PipelineRun, replace the placeholders below:
+# - your-namespace with the active OpenShift project namespace
+# - image-registry.openshift-image-registry.svc:5000/your-namespace/product-catalogue:latest
+#   with the correct internal registry route and image name for your cluster.
+# You can inspect the current namespace with: oc project -q
+# You can view the registry route with: oc get routes -n openshift-image-registry

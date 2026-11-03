@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: oc-pipelines-oc-final
+spec:
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+      default: main
+    - name: image
+      type: string
+    - name: namespace
+      type: string
+      default: default
+    - name: deployment-name
+      type: string
+      default: product-catalogue
+  workspaces:
+    - name: shared-workspace
+  tasks:
+    - name: cleanup
+      taskRef:
+        name: cleanup
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: git-clone
+      runAfter:
+        - cleanup
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+
+    - name: flake8
+      runAfter:
+        - git-clone
+      taskRef:
+        name: flake8
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: nose
+      runAfter:
+        - flake8
+      taskRef:
+        name: nose
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: buildah
+      runAfter:
+        - nose
+      taskRef:
+        name: buildah
+      params:
+        - name: image
+          value: $(params.image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: deploy
+      runAfter:
+        - buildah
+      taskRef:
+        name: deploy
+      params:
+        - name: namespace
+          value: $(params.namespace)
+        - name: image
+          value: $(params.image)
+        - name: deployment-name
+          value: $(params.deployment-name)
+      workspaces:
+        - name: source
+          workspace: shared-workspace

@@ -1,0 +1,139 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cleanup
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: clean
+      image: alpine:3.19
+      script: |
+        #!/bin/sh
+        set -eu
+        if [ ! -d "$(workspaces.source.path)" ]; then
+          echo "Workspace path does not exist: $(workspaces.source.path)"
+          exit 1
+        fi
+        find "$(workspaces.source.path)" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+        echo "Workspace cleaned successfully"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone
+spec:
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: main
+  workspaces:
+    - name: output
+  steps:
+    - name: clone
+      image: alpine/git:2.45.2
+      script: |
+        #!/bin/sh
+        set -eu
+        cd "$(workspaces.output.path)"
+        git clone --depth 1 --branch "$(params.revision)" "$(params.url)" .
+        echo "Repository cloned into workspace"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: flake8
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: lint
+      image: python:3.10-slim
+      script: |
+        #!/bin/sh
+        set -eu
+        cd "$(workspaces.source.path)"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt -r requirements-dev.txt
+        flake8 app tests
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: nose
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: tests
+      image: python:3.10-slim
+      script: |
+        #!/bin/sh
+        set -eu
+        cd "$(workspaces.source.path)"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt -r requirements-dev.txt
+        nosetests -v tests
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: buildah
+spec:
+  params:
+    - name: image
+      type: string
+    - name: storage-driver
+      type: string
+      default: vfs
+    - name: tls-verify
+      type: string
+      default: 'false'
+  workspaces:
+    - name: source
+  steps:
+    - name: build-image
+      image: quay.io/buildah/stable:v1.31
+      securityContext:
+        privileged: true
+      script: |
+        #!/bin/sh
+        set -eu
+        cd "$(workspaces.source.path)"
+        echo "Building image: $(params.image)"
+        buildah bud --storage-driver="$(params.storage-driver)" --tls-verify="$(params.tls-verify)" \
+          -t "$(params.image)" -f Dockerfile .
+        buildah push --storage-driver="$(params.storage-driver)" --tls-verify="$(params.tls-verify)" \
+          "$(params.image)" "docker://$(params.image)"
+        echo "Image pushed successfully"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy
+spec:
+  params:
+    - name: namespace
+      type: string
+    - name: image
+      type: string
+    - name: deployment-name
+      type: string
+    - name: container-name
+      type: string
+      default: product-catalogue
+  workspaces:
+    - name: source
+  steps:
+    - name: deploy
+      image: quay.io/openshift/origin-cli:4.14
+      script: |
+        #!/bin/sh
+        set -eu
+        cd "$(workspaces.source.path)"
+        oc project "$(params.namespace)"
+        oc set image deployment/"$(params.deployment-name)" "$(params.container-name)=$(params.image)" -n "$(params.namespace)"
+        oc rollout status deployment/"$(params.deployment-name)" -n "$(params.namespace)" --timeout=180s
+        echo "Deployment completed successfully"

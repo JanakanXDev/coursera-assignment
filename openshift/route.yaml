@@ -1,0 +1,12 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: product-catalogue
+spec:
+  to:
+    kind: Service
+    name: product-catalogue
+  port:
+    targetPort: http
+  tls:
+    termination: edge
