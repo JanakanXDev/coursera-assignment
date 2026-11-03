@@ -3,14 +3,10 @@ kind: PersistentVolumeClaim
 metadata:
   name: oc-pipelines-pvc
 spec:
+  storageClassName: skills-network-learner
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 5Gi
+      storage: 1Gi
   volumeMode: Filesystem
----
-# Verify the PVC status in OpenShift:
-# oc get pvc oc-pipelines-pvc -n <project>
-# oc describe pvc oc-pipelines-pvc -n <project>
-# The PVC is used as the shared Tekton workspace for the pipeline.

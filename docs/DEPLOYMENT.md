@@ -32,9 +32,19 @@ oc apply -f openshift/route.yaml -n <project>
 The shared pipeline workspace is backed by the `oc-pipelines-pvc` claim. Validate it before running the pipeline:
 
 ```bash
-oc get pvc oc-pipelines-pvc -n <project>
-oc describe pvc oc-pipelines-pvc -n <project>
+oc get storageclass skills-network-learner
+oc apply -f openshift/pvc.yaml
+oc get pvc oc-pipelines-pvc
+oc describe pvc oc-pipelines-pvc
 ```
+
+Check the following values:
+
+- Storage class is `skills-network-learner`.
+- Requested capacity is `1Gi`.
+- PVC status is `Bound`.
+
+If a PVC named `oc-pipelines-pvc` already exists with a different storage class or capacity, do not silently delete it or attempt to shrink it in place. PVC settings such as storage class and size may be immutable after creation, and the claim may contain important data. Confirm with the user or cluster owner before proposing recreation or deletion.
 
 ## Image updates
 
